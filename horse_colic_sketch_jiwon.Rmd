@@ -1,0 +1,149 @@
+---
+title: "horse_colic_stetch"
+author: "JW"
+date: "2018년 7월 22일"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 데이터 불러오기
+```{r}
+horse <- read.csv('../horse_colic/horse.csv', header = T, stringsAsFactors = F)
+
+head(horse)
+
+summary(horse)
+
+unique(horse$outcome)
+
+## statistics of died, lived, euthanized
+dead <- horse[horse$outcome=="died",]
+euthanized <- horse[horse$outcome=="euthanized",]
+lived <- horse[horse$outcome=="lived",]
+
+summary(dead)
+summary(euthanized)
+summary(lived)
+
+library(ggplot2)
+library(reshape2)
+library(ggplot2)
+library(plyr)
+```
+
+
+
+## data exploration
+```{r}
+summary(horse)
+
+# 연속형, 범주형 변수 분리
+linear.horse <- horse[,c(1,2,3,4,5,6,16,19,20,22,23)]
+head(linear.horse)
+categorical.horse <- horse[,c(1,2,3,7:15,17,23)]
+head(categorical.horse)
+
+
+# 범주형 변수 이름
+name.of.categorical.horse <- names(categorical.horse)
+
+length(name.of.categorical.horse)
+
+# value 담을 list
+horse.value.list <- vector("list", length = 13)
+horse.value2.list <- vector("list", length = 13)
+horse.graph.list <- vector("list", length = 13)
+horse.freq.list <- vector("list", length = 13)
+
+# unique 수치 list에 담음
+for(i in 1:13){
+horse.value.list[[i]] <- unique(categorical.horse[,i])
+}
+
+# 각 변수 분리해 list에 담음(그래프 그리기 위해)
+for(i in 1:13){
+horse.value2.list[[i]] <- categorical.horse[,c(14,i)]
+}
+
+names(horse.value.list) <- name.of.categorical.horse[1:13]
+names(horse.value2.list) <- name.of.categorical.horse[1:13]
+
+# 변수 이름 변경
+for(i in 1:13){
+colnames(horse.value2.list[[i]]) <- c('variable', 'outcome')}
+horse.value2.list[[1]]
+
+# outcome과 변수별 frequency 알아보기
+for(i in 1:13){
+  horse.freq.list[[i]] <- ddply(horse.value2.list[[i]], names(horse.value2.list[[1]]), summarise, Freq=length(variable))
+}
+horse.freq.list[[1]]
+
+## graph of categorical data
+scale_count <- c("died", "euthanized", "lived")
+scale_rep <- c("1","2","3")
+names(scale_count) <- scale_rep
+
+for(i in 1:13){
+horse.graph.list[[i]] <- ggplot(horse.freq.list[[i]], aes(x=outcome, y=variable)) +
+  geom_tile(aes(fill=Freq))
+
+}
+
+# 보고싶은 그래프 조회 - 나중에 식별 편하도록 이름 부여
+horse.graph.list[[3]]
+```
+
+## 변수별 관련성 이용하여 NA 채워넣기
+```{r}
+## predict dehydration
+unique(horse$packed_cell_volume)
+horse$packed_cell_volume2 <- ifelse(horse$packed_cell_volume>50, "dehyd",ifelse(horse$packed_cell_volume>=30&horse$packed_cell_volume<=50,"normal","others"))
+
+unique(horse$total_protein)
+horse$total_protein2 <- ifelse(horse$total_protein>7.6, "dehyd",ifelse(horse$total_protein>=6&horse$total_protein<=7.6,"normal","others"))
+
+dehyd <- cbind(horse$packed_cell_volume2, horse$total_protein2, horse$packed_cell_volume, horse$total_protein)
+
+View(dehyd)
+
+## obstruction
+unique(horse$nasogastric_reflux)
+horse$nasogastric_reflux2 <- ifelse(horse$nasogastric_reflux=="more_1_liter", "obs",ifelse(horse$nasogastric_reflux=="less_1_liter","a.little","normal"))
+
+unique(horse$nasogastric_reflux_ph)
+horse$nasogastric_reflux_ph2 <- ifelse(horse$nasogastric_reflux_ph>=3&horse$nasogastric_reflux_ph<=4, "normal","abnormal")
+
+
+unique(horse$rectal_exam_feces)
+horse$rectal_exam_feces2 <- ifelse(horse$rectal_exam_feces=="absent", "obs",ifelse(horse$rectal_exam_feces=="normal","normal","other"))
+unique(horse$rectal_exam_feces2)
+
+unique(horse$abdomo_appearance)
+horse$abdomo_appearance2 <- ifelse(horse$abdomo_appearance=="cloudy"|horse$abdomo_appearance=="serosanguious", "obs","normal")
+
+obs <- cbind(horse$nasogastric_reflux2,
+             horse$rectal_exam_feces2,
+             horse$abdomo_appearance2,
+             horse$abdomo_protein,
+             horse$nasogastric_reflux,
+             horse$rectal_exam_feces,
+             horse$abdomo_appearance)
+View(obs)
+obs <- as.data.frame(obs)
+
+## rectal_temp와 temp_of_extremity간의 선형관계 알아보기
+## 관련성 이용하여 NA 채워넣기 
+temp <- cbind(horse$rectal_temp, horse$temp_of_extremities)
+View(temp)
+
+## gut activity(peristalsis, abdominal_distention)
+gut <- cbind(horse$peristalsis, horse$abdominal_distention)
+View(gut)
+```
+

@@ -45,7 +45,7 @@ summary(horse)
 # 연속형, 범주형 변수 분리
 linear.horse <- horse[,c(1,2,3,4,5,6,16,19,20,22,23)]
 head(linear.horse)
-categorical.horse <- horse[,c(1,2,3,7:15,17,23)]
+categorical.horse <- horse[,c(1,2,7:15,17,23)]
 head(categorical.horse)
 
 
@@ -55,31 +55,32 @@ name.of.categorical.horse <- names(categorical.horse)
 length(name.of.categorical.horse)
 
 # value 담을 list
-horse.value.list <- vector("list", length = 13)
-horse.value2.list <- vector("list", length = 13)
-horse.graph.list <- vector("list", length = 13)
-horse.freq.list <- vector("list", length = 13)
+horse.value.list <- vector("list", length = 12)
+horse.value2.list <- vector("list", length = 12)
+horse.graph.list <- vector("list", length = 12)
+horse.freq.list <- vector("list", length = 12)
 
 # unique 수치 list에 담음
-for(i in 1:13){
+for(i in 1:12){
 horse.value.list[[i]] <- unique(categorical.horse[,i])
 }
 
 # 각 변수 분리해 list에 담음(그래프 그리기 위해)
-for(i in 1:13){
-horse.value2.list[[i]] <- categorical.horse[,c(14,i)]
+for(i in 1:12){
+horse.value2.list[[i]] <- categorical.horse[,c(13,i)]
 }
 
-names(horse.value.list) <- name.of.categorical.horse[1:13]
-names(horse.value2.list) <- name.of.categorical.horse[1:13]
+names(horse.value.list) <- name.of.categorical.horse[1:12]
+names(horse.value2.list) <- name.of.categorical.horse[1:12]
+
 
 # 변수 이름 변경
-for(i in 1:13){
+for(i in 1:12){
 colnames(horse.value2.list[[i]]) <- c('variable', 'outcome')}
 horse.value2.list[[1]]
 
 # outcome과 변수별 frequency 알아보기
-for(i in 1:13){
+for(i in 1:12){
   horse.freq.list[[i]] <- ddply(horse.value2.list[[i]], names(horse.value2.list[[1]]), summarise, Freq=length(variable))
 }
 horse.freq.list[[1]]
@@ -89,14 +90,19 @@ scale_count <- c("died", "euthanized", "lived")
 scale_rep <- c("1","2","3")
 names(scale_count) <- scale_rep
 
-for(i in 1:13){
-horse.graph.list[[i]] <- ggplot(horse.freq.list[[i]], aes(x=outcome, y=variable)) +
-  geom_tile(aes(fill=Freq))
-
+for(i in 1:12){
+horse.graph.list[[i]] <- ggplot(horse.freq.list[[i]], aes(x=variable, y=outcome)) +
+  geom_tile(aes(fill=Freq)) + labs(y = name.of.categorical.horse[i], x = "outcome")
 }
 
-# 보고싶은 그래프 조회 - 나중에 식별 편하도록 이름 부여
-horse.graph.list[[3]]
+# 식별 편하도록 이름 부여
+names(horse.graph.list) <- name.of.categorical.horse[1:12]
+
+#install.packages("gridExtra")
+library(gridExtra)
+
+# 그래프 한번에 모아보기
+do.call(grid.arrange,horse.graph.list)
 ```
 
 ## 변수별 관련성 이용하여 NA 채워넣기

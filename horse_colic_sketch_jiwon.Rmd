@@ -373,10 +373,36 @@ imp
 
 complete(imp2)
 
-horse.logit.glm <- glm(outcome ~ ., family=binomial(link = "logit"), data = complete(imp))
-
+# logistic
+horse.logit.glm <- step(glm(outcome ~ ., family=binomial(link = "logit"), data = complete(imp)))
+horse.logit2 <- complete(imp)
 summary(horse.logit.glm)
 
-step(horse.logit.glm)
+# 0: died, 1: lived
+table(horse.logit2$outcome)
+
+#stepwise
+step <- step(object = horse.logit.glm,
+             trace = F)
+
+horse.logit2$prob <- round(fitted(horse.logit.glm),2)
+
+horse.logit2$pred <- ifelse(horse.logit2$prob > 0.5, 1, 0)
+
+head(horse.logit2)
+
+table(horse.logit2[, c("outcome", "pred")])
+
+horse.logit.cast1 <- horse.logit2[horse.logit2$outcome == 1 & horse.logit2$pred
+== 1, ]
+head(horse.logit.cast1[order(horse.logit.cast1$prob, decreasing = T), ])
+
+horse.logit.cast2 <- horse.logit2[horse.logit2$outcome == 0 & horse.logit2$pred
+== 1, ]
+head(horse.logit.cast2[order(horse.logit.cast2$prob, decreasing = T), ])
+
+horse.logit.cast3 <- horse.logit2[horse.logit2$outcome == 0 & horse.logit2$pred
+== 0, ]
+head(horse.logit.cast3[order(horse.logit.cast3$prob), ])
 ```
 

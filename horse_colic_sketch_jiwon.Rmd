@@ -34,6 +34,7 @@ library(ggplot2)
 library(reshape2)
 library(ggplot2)
 library(plyr)
+library(gridExtra)
 ```
 
 
@@ -43,45 +44,52 @@ library(plyr)
 summary(horse)
 
 # 연속형, 범주형 변수 분리
-linear.horse <- horse[,c(1,2,3,4,5,6,16,19,20,22,23)]
+linear.horse <- horse[,c(4,5,6,16,19,20,22,23)]
 head(linear.horse)
 categorical.horse <- horse[,c(1,2,7:15,17,23)]
 head(categorical.horse)
 
 
-# 범주형 변수 이름
+# 변수 이름 저장
 name.of.categorical.horse <- names(categorical.horse)
+name.of.linear.horse <- names(linear.horse)
 
 length(name.of.categorical.horse)
+length(name.of.linear.horse)
 
 # value 담을 list
-horse.value.list <- vector("list", length = 12)
-horse.value2.list <- vector("list", length = 12)
+horse.value.list.l <- vector("list", length = 6)
+horse.value.list.c <- vector("list", length = 12)
 horse.graph.list <- vector("list", length = 12)
+horse.graph.list.l <- vector("list", length = 6)
 horse.freq.list <- vector("list", length = 12)
 
 # unique 수치 list에 담음
-for(i in 1:12){
-horse.value.list[[i]] <- unique(categorical.horse[,i])
-}
+# for(i in 1:12){
+# horse.value.list[[i]] <- unique(categorical.horse[,i])
+# }
 
 # 각 변수 분리해 list에 담음(그래프 그리기 위해)
 for(i in 1:12){
-horse.value2.list[[i]] <- categorical.horse[,c(13,i)]
+horse.value.list.c[[i]] <- categorical.horse[,c(13,i)]
 }
-
-names(horse.value.list) <- name.of.categorical.horse[1:12]
-names(horse.value2.list) <- name.of.categorical.horse[1:12]
+for(i in 1:7){
+horse.value.list.l[[i]] <- linear.horse[,c(8,i)]
+}
+horse.value.list.l[[1]]
+names(horse.value.list.c) <- name.of.categorical.horse[1:12]
+names(horse.value.list.l) <- name.of.categorical.horse[1:7]
 
 
 # 변수 이름 변경
 for(i in 1:12){
-colnames(horse.value2.list[[i]]) <- c('variable', 'outcome')}
-horse.value2.list[[1]]
+colnames(horse.value.list.c[[i]]) <- c('variable', 'outcome')}
+for(i in 1:7){
+colnames(horse.value.list.l[[i]]) <- c('outcome', 'variable')}
 
 # outcome과 변수별 frequency 알아보기
 for(i in 1:12){
-  horse.freq.list[[i]] <- ddply(horse.value2.list[[i]], names(horse.value2.list[[1]]), summarise, Freq=length(variable))
+  horse.freq.list[[i]] <- ddply(horse.value.list.c[[i]], names(horse.value.list.c[[i]]), summarise, Freq=length(variable))
 }
 horse.freq.list[[1]]
 
@@ -89,21 +97,76 @@ horse.freq.list[[1]]
 scale_count <- c("died", "euthanized", "lived")
 scale_rep <- c("1","2","3")
 names(scale_count) <- scale_rep
+```
 
+## 그래프 그리기
+```{r}
+## 범주형 변수
+# 리스트에 담기
 for(i in 1:12){
 horse.graph.list[[i]] <- ggplot(horse.freq.list[[i]], aes(x=variable, y=outcome)) +
   geom_tile(aes(fill=Freq)) + labs(y = name.of.categorical.horse[i], x = "outcome")
 }
 
-# 식별 편하도록 이름 부여
-names(horse.graph.list) <- name.of.categorical.horse[1:12]
+for(i in 1:7){
+horse.graph.list.l[[i]] <- ggplot(horse.value.list.l[[i]], aes(x=outcome, y=variable, fill=outcome)) + geom_boxplot() + labs(y = name.of.linear.horse[i], x = "outcome") + scale_fill_discrete(guide=FALSE)
+}
 
-#install.packages("gridExtra")
-library(gridExtra)
+
+# 식별 편하도록 리스트에 이름 부여
+names(horse.graph.list) <- name.of.categorical.horse[1:12]
+names(horse.graph.list.l) <- name.of.linear.horse[1:7]
+
+ggplot(horse.value.list.l[[1]], aes(x=outcome, y=variable, fill=outcome)) + geom_boxplot() + scale_fill_discrete(guide=FALSE)
+
 
 # 그래프 한번에 모아보기
 do.call(grid.arrange,horse.graph.list)
+do.call(grid.arrange,horse.graph.list.l)
+
+horse.freq.list[[12]]
+
 ```
+
+## Missing Value Map
+```{r}
+install.packages("Amelia")
+library(Amelia)
+
+missmap(linear.horse[,1:7])
+
+
+
+freq <-  ddply(long, names(surgery), summarise, Freq=length(variable))
+
+for(i in 1:12){
+horse.freq.list2 <- 
+  horse.freq.list[[i]]$name <- name.of.categorical.horse[[i]]
+}
+
+freq <- do.call(rbind, horse.freq.list)
+head(freq)
+
+library(dplyr)
+freq.percent <- group_by(freq, name) %>% mutate(percent = round(Freq*100/sum(Freq),1))
+
+freq.percent2 <- group_by(freq, name) %>% transmute(variable, percent = round(Freq*100/sum(Freq),1))
+
+head(freq.percent2)
+View(freq.percent)
+
+```
+# 데이터가 변수의 특성을 잘 나타내는지 확인
+```{r}
+# obstruction: nasogastic reflux, rectal examination fces, abdomen, abdominocentesis appearance, abdomcentesis total protein
+# dehydration: packed cell volume, total protein
+# gut activity: peristalsis, abdominal distension
+# shock: rectal temperature, temperature of extremities, mucous membrances, pulse
+# pain: pulse, pain
+# circulation: mucous membrane, capillary refill time, peripheral pulse
+
+```
+
 
 ## 변수별 관련성 이용하여 NA 채워넣기
 ```{r}
@@ -116,7 +179,7 @@ horse$total_protein2 <- ifelse(horse$total_protein>7.6, "dehyd",ifelse(horse$tot
 
 dehyd <- cbind(horse$packed_cell_volume2, horse$total_protein2, horse$packed_cell_volume, horse$total_protein)
 
-View(dehyd)
+head(dehyd)
 
 ## obstruction
 unique(horse$nasogastric_reflux)
@@ -140,16 +203,40 @@ obs <- cbind(horse$nasogastric_reflux2,
              horse$nasogastric_reflux,
              horse$rectal_exam_feces,
              horse$abdomo_appearance)
-View(obs)
+head(obs)
 obs <- as.data.frame(obs)
 
 ## rectal_temp와 temp_of_extremity간의 선형관계 알아보기
 ## 관련성 이용하여 NA 채워넣기 
 temp <- cbind(horse$rectal_temp, horse$temp_of_extremities)
-View(temp)
+head(temp)
 
 ## gut activity(peristalsis, abdominal_distention)
 gut <- cbind(horse$peristalsis, horse$abdominal_distention)
-View(gut)
+head(gut)
+
+```
+
+## Missing data
+```{r}
+# 출처: https://rstudio-pubs-static.s3.amazonaws.com/192402_012091b9adac42dbbd22c4d07cb00d36.html
+
+require(moonBook)
+
+na.count=apply(linear.horse, 2, function(x) sum(is.na(x)))
+na.chart <- na.count[na.count>0]
+na.chart <- as.data.frame(na.chart)
+na.chart <- t(na.chart)
+na.chart
+##추후 옵션변
+ggplot(na.chart) + barplot(aes(x="continuous variable", y="count"))
+barplot(na.chart)
+
+install.packages("VIM")
+require(VIM)
+require(robustbase)
+linear.horse
+x = as.data.frame(linear.horse(is.na(linear.horse)))
+
 ```
 

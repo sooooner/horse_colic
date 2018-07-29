@@ -120,9 +120,10 @@ names(horse.graph.list.l) <- name.of.linear.horse[1:7]
 ggplot(horse.value.list.l[[1]], aes(x=outcome, y=variable, fill=outcome)) + geom_boxplot() + scale_fill_discrete(guide=FALSE)
 
 
+
 # 그래프 한번에 모아보기
 do.call(grid.arrange,horse.graph.list)
-do.call(grid.arrange,horse.graph.list.l)
+do.call(grid.arrange,horse.graph.list.l[[2]],horse.graph.list.l[[4]])
 
 horse.freq.list[[12]]
 
@@ -235,8 +236,147 @@ barplot(na.chart)
 install.packages("VIM")
 require(VIM)
 require(robustbase)
-linear.horse
-x = as.data.frame(linear.horse(is.na(linear.horse)))
 
+x = as.data.frame(abs(is.na(linear.horse)))
+y=apply(x,2,function(x) sum(x)>0)
+View(round(cor(x[y]),2))
+
+nrow(linear.horse)
+linear.horse2 <- na.omit(linear.horse)
+nrow(linear.horse2)
+
+dehydrated <- linear.horse[,c(5,6)]
+dehydrated2 <- linear.horse[,c(5,6)]
+cor.test(dehydrated2$packed_cell_volume, dehydrated2$total_protein, method ='spearman')
+dehydrated2 <- na.omit(dehydrated2)
+nrow(dehydrated)
+colnames(dehydrated)
+#kendall, spearman
+cor.test(dehydrated$packed_cell_volume, dehydrated$total_protein, method = "spearman")
+
+shapiro.test(dehydrated$packed_cell_volume)
+shapiro.test(dehydrated$total_protein)
+
+# install.packages("ggpubr")
+library("ggpubr")
+ggqqplot(dehydrated$packed_cell_volume, ylab = "packed cell volume")
+ggqqplot(dehydrated$total_protein, ylab = "total protein")
+View(dehydrated)
+
+write.csv(dehydrated, "cor.csv")
+
+library(data.table)
+set.seed(123)
+#install.packages("corrplot")
+library(corrplot)
+corrplot(linear.horse)
+#install.packages("Hmisc")
+library(Hmisc)
+res <- rcorr(as.matrix(linear.horse[,1:7]))
+res2 <- rcorr(as.matrix(categorical.horse[,1:12]))
+View(res)
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+    )
+}
+flattenCorrMatrix(res$r, res$P)
+
+rho <- cor.test(dehydrated2$packed_cell_volume, dehydrated2$total_protein, method = 'spearman')
+rho <- rho$estimate
+# linear regression of original data
+fit1 <- lm(packed_cell_volume ~ total_protein, data = dehydrated)
+fit2 <- lm(total_protein ~ packed_cell_volume, data = dehydrated)
+
+# standard errors of regression intercept
+# multiply se by sqrt to get sd
+sd1 = summary(fit1)$coefficients[1,2] * sqrt(dehydrated[!is.na(dehydrated$packed_cell_volume), .N])
+sd2 = summary(fit2)$coefficients[1,2] * sqrt(dehydrated[!is.na(dehydrated$total_protein), .N])
+
+# find where data points with missing values lie on the regression line
+dehydrated <- data.table(dehydrated)
+dehydrated[is.na(packed_cell_volume), packed_cell_volume.imp := coefficients(fit1)[1] + coefficients(fit1)[2] * total_protein] 
+dehydrated[is.na(dehydrated$total_protein), total_protein.imp := coefficients(fit2)[1] + coefficients(fit2)[2] * packed_cell_volume]
+
+# generate randomised residuals for the missing data, using the s.d. calculated above
+dehydrated[is.na(packed_cell_volume), packed_cell_volume.ran := rnorm(.N, sd=sd1)] 
+dehydrated[is.na(total_protein), total_protein.ran := rnorm(.N, sd=sd2)]
+
+# function that scales the residuals by a factor x, then calculates how close correlation of imputed data is to that of original data
+obj = function(x, dehydrated, rho) {
+  dehydrated[, packed_cell_volume.comp := packed_cell_volume][, total_protein.comp := total_protein]
+  dehydrated[is.na(packed_cell_volume), packed_cell_volume.comp := packed_cell_volume.imp + packed_cell_volume.ran*x] 
+  dehydrated[is.na(total_protein), total_protein.comp := total_protein.imp + total_protein.ran*x] 
+  rho2 = cor(dehydrated$total_protein.comp, dehydrated$packed_cell_volume.comp,'pairwise')
+  (rho-rho2)^2
+}
+
+# find the value of x that minimises the discrepencay of imputed versus original correlation
+fit = optimize(obj, c(-5,5), dehydrated, rho)
+
+
+x=fit$minimum
+dehydrated[, packed_cell_volume.comp := packed_cell_volume][, total_protein.comp := total_protein]
+dehydrated[is.na(packed_cell_volume), packed_cell_volume.comp := packed_cell_volume.imp + packed_cell_volume.ran*x] 
+dehydrated[is.na(total_protein), total_protein.comp := total_protein.imp + total_protein.ran*x] 
+rho2 = cor(dehydrated$total_protein.comp, dehydrated$packed_cell_volume.comp,'pairwise')
+(rho-rho2)^2  # check that rho2 is approximately equal to rho
+
+fit.comp = lm(packed_cell_volume.comp ~ total_protein.comp, data=dehydrated)
+
+plot(dehydrated$total_protein.comp, dehydrated$total_protein.comp)
+points(dehydrated$total_protein, dehydrated$total_protein, col="red")
+abline(fit1, col="green")
+abline(fit.comp, col = "blue")
+mtext(paste(" Rho =", round(rho, 5)), at=-1)
+mtext(paste(" Rho2 =", round(rho2, 5)), at=6)
+```
+
+```{r}
+cor.test(linear.horse$total_protein, linear.horse$nasogastric_reflux_ph,  method = "pearson", use = "complete.obs")
+
+require(lattice)
+pairs(linear.horse[,c("total_protein", "nasogastric_reflux_ph")])
+
+names(linear.horse)
+
+# 등분산성 확인
+var.test(na.omit(linear.horse[linear.horse$outcome=="lived",4]), na.omit(linear.horse[linear.horse$outcome=="died",4]))
+
+t.test(na.omit(linear.horse[linear.horse$outcome=="lived",4]), na.omit(linear.horse[linear.horse$outcome=="died",4]),  paired = FALSE, var.equal = TRUE, conf.level = 0.95)
+
+t.test(na.omit(linear.horse[linear.horse$outcome=="lived",7]), na.omit(linear.horse[linear.horse$outcome=="died",7]),  paired = FALSE, var.equal = TRUE, conf.level = 0.95)
+
+t.test(na.omit(linear.horse[linear.horse$outcome=="lived",1]), na.omit(linear.horse[linear.horse$outcome=="died",1]),  paired = FALSE, var.equal = TRUE, conf.level = 0.95)
+
+horse.logit <- read.csv('C:/Users/Smart User/Desktop/naver_competition/data-files/horse.logit.csv', header = T, stringsAsFactors = F)
+
+horse.logit2 <- read.csv('C:/Users/Smart User/Desktop/naver_competition/data-files/horse_na.csv', header = T, stringsAsFactors = F)
+
+
+head(horse.logit)
+
+install.packages("mice")
+library(mice)
+
+md.pattern(horse.logit)
+p <- md.pairs(horse.logit2)
+p
+
+imp <- mice(horse.logit)
+head(horse.logit2)
+imp
+
+complete(imp2)
+
+horse.logit.glm <- glm(outcome ~ ., family=binomial(link = "logit"), data = complete(imp))
+
+summary(horse.logit.glm)
+
+step(horse.logit.glm)
 ```
 
